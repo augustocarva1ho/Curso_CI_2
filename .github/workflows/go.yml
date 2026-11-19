@@ -21,17 +21,30 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go_version }}
-      
+
     - name: Build-DB
       run: docker compose build
-      
+
     - name: Create-DB
-      run: docker compose up -d
+      run: docker compose up -d postgres
+
+    - name: Wait for Postgres
+      run: |
+        for i in {1..30}; do
+          if docker compose exec -T postgres pg_isready -U root -d root; then
+            echo "Postgres pronto"
+            exit 0
+          fi
+          echo "Aguardando Postgres... tentativa $i"
+          sleep 2
+        done
+        echo "Postgres não ficou pronto a tempo"
+        docker compose logs postgres
+        exit 1
 
     - name: Test
-      run: go test -v main_test.go 
-      
-  
+      run: go test -v main_test.go
+
   build:
     needs: test
     runs-on: ${{ matrix.os }}
@@ -40,5 +53,11 @@ jobs:
         os: ['ubuntu-latest', 'ubuntu-22.04']
     steps:
     - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.18'
+
     - name: Build
       run: go build -v main.go
